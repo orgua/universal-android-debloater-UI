@@ -255,6 +255,7 @@ def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
         with open(file, "r", encoding="utf8") as metafile:
             # TODO: encoding had to be specified, because of unusual characters in LG.sh, line 135
             data = metafile.readlines()
+            data = [date.replace("\t", "").replace("\r", "").replace("\n", "") for date in data]
             data_len = len(data)
             for data_index in range(data_len):
                 # filter for lines with format: text1 "text2" text3 -> text2 is alphanum with .dot, without spaces or /
@@ -273,7 +274,7 @@ def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
                 line_min = max(0, data_index - 6)
                 for min_index in range(data_index-1, line_min, -1):
                     if len(data[min_index]) < 2:
-                        line_min = min_index
+                        line_min = min_index + 1
                         break
                 line_max = min(data_len - 1, data_index + 10)
                 for max_index in range(data_index+1, line_max, 1):
@@ -342,7 +343,7 @@ def update_table():
     for keyword in get_value("text_filter_keywords").split(" "):
         keyword_data = keyword_data[keyword_data["package"].str.contains(keyword)]
     keyword_data.loc[:, "type"] = keyword_data["type"].apply(lambda x: "System" if x else "3rd Party")
-    data_print = keyword_data[package_columns + debloat_columns[1:-1]]
+    data_print = keyword_data[package_columns + debloat_columns[1:-3]]
     set_table_data("table_packages", data_print.values.tolist())
     set_headers("table_packages", data_print.columns.values.tolist())
     log_info(f"updated table", logger="debuglog")
@@ -418,7 +419,28 @@ def save_button_callback(sender, data):
         log_error(f"file {local_file_path} could not be saved, seems to be open in another program", logger="debuglog")
 
 
-def update_selection_list():
+def show_package_info(package: str) -> NoReturn:
+    global package_data, debloat_columns
+    package_info1 = package_data.loc[package_data["package"] == package, debloat_columns[-1]].iloc[0]
+    package_info2 = list([])
+    # easiest (most stupid) way to shorten strings, because text-field can't handle line breaks
+    for info in package_info1:
+        if len(info) < 60:
+            package_info2.append(info)
+        elif len(info) < 120:
+            package_info2.append(info[0:60])
+            package_info2.append(info[60:])
+        else:
+            package_info2.append(info[0:60])
+            package_info2.append(info[60:120])
+            package_info2.append(info[120:])
+    package_src = package_data.loc[package_data["package"] == package, debloat_columns[-3]].iloc[0]
+    package_file = package_data.loc[package_data["package"] == package, debloat_columns[-4]].iloc[0]  # TODO: optimize
+    package_meta = [package + "\n"] + package_info2 + [f"\nSource {package_file}, Line {package_src}"]
+    set_value("package_info", "\n".join(package_meta))
+
+
+def update_selection_list() -> NoReturn:
     global table_selection, table_dimension
     coordinates = get_table_selections("table_packages")
     row_sel_count = table_dimension[0] * [0]
@@ -433,6 +455,7 @@ def update_selection_list():
         elif col_count == 1:
             for col_index in range(table_width):
                 set_table_selection("table_packages", row_index, col_index, True)
+            show_package_info(get_table_item("table_packages", row_index, 0))
         elif col_count == table_width - 1:
             for col_index in range(table_width):
                 set_table_selection("table_packages", row_index, col_index, False)
@@ -589,8 +612,10 @@ if __name__ == '__main__':
         add_spacing(count=2, name="spacing2")
         add_table("table_packages",
                   ["not", "updated", "yet"],
-                  height=370,
+                  height=window_height - table_height_offset,
                   callback=table_callback)
+        # TODO: maybe switch with listbox, could expand easier, but allows only one selection
+        # TODO: another good way would be to get hover-element of table and show a tooltip, but this is not possible right now
 
         add_spacing(count=2, name="spacing3")
         add_text("Package Actions:")
@@ -631,13 +656,21 @@ if __name__ == '__main__':
                    callback=packages_uninstall_callback)
 
         add_spacing(count=7, name="spacing3")
+        add_input_text("package_info",
+                    width=500,
+                    label="",
+                    height=230,
+                       readonly=True,multiline=True)
+
+        add_same_line(spacing=10)
         add_logger("debuglog",
                    log_level=1,
-                   width=500,
+                   width=450,
                    height=230,
                    auto_scroll=True, auto_scroll_button=False,
                    copy_button=False, clear_button=False,
                    filter=False)
+        configure_item("debuglog", auto_scroll=True)  # TODO: file bugreport, auto_scroll=True in initializer does not work
 
     # TODO: add a notification, that info is about to be improved
     start_dearpygui(primary_window="main")
