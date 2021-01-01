@@ -324,8 +324,6 @@ def filter_dataframe(df: pd.DataFrame, column: str, filter_val: int) -> pd.DataF
 
 def update_table():
     global package_data, table_dimension, package_columns, debloat_columns
-    pd.set_option('mode.chained_assignment', None)
-
     type_data = filter_dataframe(package_data, "type", get_value("button_filter_type"))
     type_data.loc[:, "active"] = type_data["enabled"] & type_data["installed"]
     active_data = filter_dataframe(type_data, "active", get_value("button_filter_active"))
@@ -437,7 +435,7 @@ def update_selection_list():
     configure_item("button_sel_install", enabled=has_selection)
     configure_item("button_sel_uninstall", enabled=has_selection)
     if len(table_selection) > 0:
-        log_info(f"selected packages: {table_selection}", logger="debuglog")
+        log_info(f"package selection: {table_selection}", logger="debuglog")
 
 
 def table_callback(sender, data):
@@ -496,7 +494,9 @@ def window_resize_callback(sender, data):
 
 if __name__ == '__main__':
 
+    pd.set_option('mode.chained_assignment', None)
     git_update()
+
     user: int = 0
     device: AdbDevice = None
     debloat_data: pd.DataFrame = parse_debloat_lists()
@@ -505,10 +505,10 @@ if __name__ == '__main__':
     table_selection: list = list([])
     table_dimension: Union = (0, 0)
     table_height_offset = 450  # pixels,  window_height - table_height_offset = table_height
-    window_height: int = 0
+    window_height: int = 800
 
     set_main_window_title(title=program_name)
-    set_main_window_size(1000, 800)
+    set_main_window_size(1000, window_height)
     set_render_callback(callback=window_resize_callback)
     set_theme(theme="Purple")  # fav: Purple, Gold, Light
 
