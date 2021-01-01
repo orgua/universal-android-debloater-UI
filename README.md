@@ -10,10 +10,11 @@
 
 - current features:
   - check packages on device against packages known to debloater
-  - filter for type, keywords, enable-status and remove-recommendation
+  - filter for package-type, keywords, enable-status and remove-recommendation
   - packages can be enabled, disabled, installed and uninstalled
   - save current package data as csv locally
-  - auto-save 
+  - auto-save on device
+  - resizing windows adapts the table
 
 ### Installation
 
@@ -37,6 +38,9 @@
   - note2: even some safe packages can ruin your experience if you got no replacement
   - note3: information about the packages should be shown as you click on the corresponding row
 
+### User Interface
+![screenshot](./media/screenshot_alpha.png)
+
 ### Todo
 
 - add screenshot
@@ -54,4 +58,5 @@
   - depending_on: (see comment right above)
   - safe_to_remove: bool
   - description: text like in current lists
+  - replacement_recommended: some thing open source and light on resources, similar fn
 - better packet info could be stored on a per-file basis or like now in brand specific files, but maybe switch to yaml or similar
