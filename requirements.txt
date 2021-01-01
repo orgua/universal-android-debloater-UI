@@ -1,0 +1,5 @@
+adb-shell[async, usb]
+pandas
+dearpygui
+gitpython
+setuptools
