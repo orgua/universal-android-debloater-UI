@@ -50,7 +50,7 @@ csv_delimiter = ";"  # default: ",", tab is "\t"
 csv_encoding = "utf-8-sig"  # unicode
 csv_decimal = ","  # the german way is ","
 
-debloat_columns = ["found_info", "is_safe", "source_file"]
+debloat_columns = ["found_info", "is_safe", "source_file", "source_pos", "source_range", "source_descr"]
 package_columns = ["package", "type", "enabled", "installed"]
 program_name = "Universal Android Debloater UI - v0.2 Alpha"
 adb_sleep = 0.2  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
@@ -243,7 +243,7 @@ def enable_package(_device: AdbDevice, package: str, _user: int, with_install: b
 
 # import universal android debloater
 def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
-    global debloater_list_path, debloater_list_extension
+    global debloater_list_path, debloater_list_extension, debloat_columns, package_columns
     file_items = [x for x in os.scandir(debloater_list_path) if x.is_file()]
     package_list = list([])
     for file in file_items:
@@ -252,26 +252,36 @@ def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
             continue
         if debug:
             print(f"-> will parse '{file.name}'")
-        with open(file, "r",
-                  encoding="utf8") as metafile:  # TODO: encoding had to be specified, because of unusual characters in lg.sh, line 135
+        with open(file, "r", encoding="utf8") as metafile:
+            # TODO: encoding had to be specified, because of unusual characters in LG.sh, line 135
             data = metafile.readlines()
-            data = [date for date in data if date.find(
-                "\"") >= 0]  # filter out lines without packages, TODO: remove for proper line-counting, store with package
-            for date in data:
-                fragments = date.split("\"")
+            data_len = len(data)
+            for data_index in range(data_len):
+                # filter for lines with format: text1 "text2" text3 -> text2 is alphanum with .dot, without spaces or /
+                fragments = data[data_index].split("\"")
                 if (len(fragments) > 3) and debug:
                     print(f"NOTE: filtered out '{fragments}', because of too many >>\"<< in '{file.name}'")
-                if (len(fragments) < 3) and (len(fragments) > 3):
+                if len(fragments) != 3:
                     continue
                 package_name = fragments[1]
                 is_safe = fragments[0].find("#") < 0
                 if (package_name.find(".") < 0) or (package_name.find(" ") > 0) or (package_name.find("/") > 0):
                     if debug:
-                        print(
-                            f"NOTE: filtered out '{package_name}' package, because of invalid name-format in '{file.name}'")
+                        print(f"NOTE: filtered out '{package_name}' package -> invalid name-format in '{file.name}'")
                     continue
-                package_list.append(
-                    pd.DataFrame([[package_name, is_safe, file.name]], columns=["package", "is_safe", "source_file"]))
+                # determine start and end of description
+                line_min = max(0, data_index - 6)
+                for min_index in range(data_index-1, line_min, -1):
+                    if len(data[min_index]) < 2:
+                        line_min = min_index
+                        break
+                line_max = min(data_len - 1, data_index + 10)
+                for max_index in range(data_index+1, line_max, 1):
+                    if len(data[max_index]) < 2:
+                        line_max = max_index
+                        break
+                data_row = [package_name, True, is_safe, file.name, data_index, range(line_min, line_max), data[line_min:line_max]]
+                package_list.append(pd.DataFrame([data_row], columns=[package_columns[0]] + debloat_columns))
     print(f"-> parsed debloat lists, got {len(package_list)} entries")
     packages = pd.concat(package_list, ignore_index=True).sort_values(by="package", ascending=True)
     packages.loc[:, "duplicate"] = packages.duplicated(subset=["package"], keep=False)
@@ -279,23 +289,23 @@ def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
     return packages
 
 
-def enrich_package_list(package_list: pd.DataFrame, debloat_list: pd.DataFrame) -> pd.DataFrame:
-    package_list.loc[:, ["found_info", "is_safe", "source_file"]] = package_list["package"].apply(
-        lambda x: lambda_enrich_package(x, debloat_list))
-    return package_list
+def enrich_package_list(packages: pd.DataFrame, debloats: pd.DataFrame) -> pd.DataFrame:
+    global debloat_columns
+    packages.loc[:, debloat_columns] = packages["package"].apply(lambda x: lambda_enrich_package(x, debloats))
+    return packages
 
 
 def lambda_enrich_package(package: str, debloat_list: pd.DataFrame) -> pd.Series:
+    global debloat_columns
     debloats = debloat_list[debloat_list["package"] == package]
     item = pd.Series(dtype=bool)
     if len(debloats) > 0:
-        item["found_info"] = True
-        item["is_safe"] = debloats["is_safe"].iloc[0]
-        item["source_file"] = debloats["source_file"].iloc[0]
+        for column in debloat_columns:
+            item[column] = debloats[column].iloc[0]
     else:
-        item["found_info"] = False
-        item["is_safe"] = ""
-        item["source_file"] = ""
+        item[debloat_columns[0]] = False
+        for column in debloat_columns[1:]:
+            item[column] = ""
     return item
 
 
@@ -332,7 +342,7 @@ def update_table():
     for keyword in get_value("text_filter_keywords").split(" "):
         keyword_data = keyword_data[keyword_data["package"].str.contains(keyword)]
     keyword_data.loc[:, "type"] = keyword_data["type"].apply(lambda x: "System" if x else "3rd Party")
-    data_print = keyword_data[package_columns + debloat_columns[1:]]
+    data_print = keyword_data[package_columns + debloat_columns[1:-1]]
     set_table_data("table_packages", data_print.values.tolist())
     set_headers("table_packages", data_print.columns.values.tolist())
     log_info(f"updated table", logger="debuglog")
@@ -343,6 +353,7 @@ def update_table():
 
 def update_data():
     global device, package_data, debloat_data
+    # TODO: add fetch from device here
     package_data = read_package_list(device)
     package_data = enrich_package_list(package_data, debloat_data)
 
@@ -369,7 +380,7 @@ def filter_reset_callback(sender, data):
 
 
 def connect_button_callback(sender, data):
-    global device, user, package_data, debloat_data, is_connected, adb_key_file_path
+    global device, user, package_data, debloat_data, is_connected, adb_key_file_path, package_columns, debloat_columns
     if is_connected:
         device.close()  # NOTE: not working properly for USB-Device
         device = None
