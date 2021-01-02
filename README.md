@@ -43,7 +43,7 @@ NOTE: this is a prototype for now
 
 ### Todo
 
-- add screenshot
+- find a way to make first column wider, not possible atm
 - auto save meta-data on device
 - (tested) support for older android versions
 - better meta-data support for known packages

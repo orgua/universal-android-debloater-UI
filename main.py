@@ -5,7 +5,7 @@
 # op3T lineage
 # op7T lineage
 # samsung A3 2017
-
+from datetime import datetime
 import os.path
 import sys
 import time
@@ -24,13 +24,14 @@ from dearpygui.simple import *
 #                                Config                                         #
 # ###############################################################################
 
-local_save_path = "./"
+local_folder_path = "./"
 adb_key_file = "adb_key"
 remote_save_path = "./storage/emulated/0/"
 save_file_name = "universal_android_debloater_package_list"
 save_file_extension = "csv"
 debloater_list_path = "./uad/lists"  # TODO: transform to list,
 debloater_list_extension = "sh"
+adb_log_file = "log_adb_operations.txt"
 package_list_query = "cmd package list packages "
 package_list_query_deprecated = "pm list packages "
 package_options = [
@@ -56,19 +57,18 @@ program_name = "Universal Android Debloater UI - v0.2 Alpha"
 adb_sleep = 0.2  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
 
 # assemble config
-adb_key_file_path = local_save_path + adb_key_file
+adb_key_file_path = local_folder_path + adb_key_file
 remote_file_path = remote_save_path + save_file_name + "." + save_file_extension
-local_device_file_path = local_save_path + save_file_name + "_remote." + save_file_extension
-local_file_path = local_save_path + save_file_name + "." + save_file_extension
+local_device_file_path = local_folder_path + save_file_name + "_remote." + save_file_extension
+local_file_path = local_folder_path + save_file_name + "." + save_file_extension
 package_option_names = [option[1] for option in package_options]
-
 
 # ###############################################################################
 #                                Git                                            #
 # ###############################################################################
 
 
-def git_update():
+def git_update() -> NoReturn:
     global debloater_list_path
     uad_path = "/".join(debloater_list_path.split("/")[0:-1])
     if not os.path.exists(uad_path):
@@ -79,6 +79,17 @@ def git_update():
         repo = Repo(uad_path)
         repo.git.pull()
 
+
+# ###############################################################################
+#                                LogFile                                        #
+# ###############################################################################
+
+def save_to_log(action: str, device: str, response: str) -> NoReturn:
+    global adb_log_file, local_folder_path
+    with open(local_folder_path + adb_log_file, 'a') as file:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        file.write(f"{timestamp} - {device} - '{action}'\n")
+        file.write(response + "\n\n")
 
 # ###############################################################################
 #                                ADB                                            #
@@ -136,16 +147,23 @@ def push_device_package_list_backup(_device: AdbDevice, _local_file_path: str) -
     print(f"-> pushed file to device, file = {remote_file_path}")
 
 
+def filter_getprop(getprop: str, filter: str) -> str:
+    for prop in getprop:
+        if filter in prop:
+            return prop.split(":")[1].strip(" []")
+
+
 def get_device_properties(_device: AdbDevice) -> str:
+    global device_name, device_android_version
     if not check_device_availability(_device):
         return ""
-    response = _device.shell("getprop")
+    response = _device.shell("getprop").splitlines()
     time.sleep(adb_sleep)
     # TODO: filter ro.build.product, take line, string after that without space, :, []
-    # [ro.product.model]: [ONEPLUS A3003]
-    # ro.product.[odm, system, vendor].[brand,device,manufacturer,model,name]
+    device_name = filter_getprop(response, "ro.product.manufacturer") + " " + filter_getprop(response, "ro.product.device")
+    device_android_version = filter_getprop(response, "ro.build.version.release")
     # TODO: vary query by android version (getprop)
-    print(f"-> read device properties, got {0} tdb meta-data")
+    print(f"-> read device properties, got device='{device_name}' with android {device_android_version}")
     return response
 
 
@@ -200,18 +218,25 @@ def read_package_list(_device: AdbDevice) -> pd.DataFrame:
 
 # adb halt, disable, uninstall program
 def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall: bool = False) -> bool:
+    global device_name
     if not check_device_availability(_device):
         return False
     # TODO: first find it, do nothing otherwise
-    response1 = _device.shell(
-        f"am force-stop {package}")  # TODO: could be that "am stopservice" is the new one >= marshmellow, the other one <= jelly bean
-    response2 = _device.shell(f"pm disable-user --user {_user} {package}")
+    cmd1 = f"am force-stop {package}"
+    cmd2 = f"pm disable-user --user {_user} {package}"
+    cmd3 = f"pm uninstall -k --user {_user} {package}"
+    response1 = _device.shell(cmd1)
+    # TODO: it could be that "am stopservice" is the new one >= marshmellow, the other one <= jelly bean
+    response2 = _device.shell(cmd2)
     print(f"-> stopping  package '{package}' with response '{response1}'")
     print(f"-> disabling package '{package}' with response '{response2}'")
+    save_to_log(cmd1, device_name, response1)
+    save_to_log(cmd2, device_name, response2)
     time.sleep(adb_sleep)
     if with_uninstall:
-        response3 = _device.shell(f"pm uninstall -k --user {_user} {package}")
+        response3 = _device.shell(cmd3)
         print(f"-> uninstall package '{package}' with response '{response3}'")
+        save_to_log(cmd3, device_name, response3)
         time.sleep(adb_sleep)
     return True
 
@@ -219,14 +244,20 @@ def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall
 def enable_package(_device: AdbDevice, package: str, _user: int, with_install: bool = False) -> bool:
     if not check_device_availability(_device):
         return False
+    cmd1 = f"cmd package install-existing {package}"
+    cmd2 = f"pm enable {package}"
+    cmd3 = f"am startservice {package}"
     if with_install:
-        response1 = _device.shell(f"cmd package install-existing {package}")
+        response1 = _device.shell(cmd1)
         print(f"-> install package '{package}' with response '{response1}'")
+        save_to_log(cmd1, device_name, response1)
         time.sleep(adb_sleep)
-    response2 = _device.shell(f"pm enable {package}")
-    response3 = _device.shell(f"am startservice {package}")
+    response2 = _device.shell(cmd2)
+    response3 = _device.shell(cmd3)
     print(f"-> enabling package '{package}' with response '{response2}'")
     print(f"-> starting package '{package}' with response '{response3}'")
+    save_to_log(cmd2, device_name, response2)
+    save_to_log(cmd3, device_name, response3)
     time.sleep(adb_sleep)
     return True
 
@@ -244,7 +275,7 @@ def enable_package(_device: AdbDevice, package: str, _user: int, with_install: b
 # import universal android debloater
 def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
     global debloater_list_path, debloater_list_extension, debloat_columns, package_columns
-    file_items = [x for x in os.scandir(debloater_list_path) if x.is_file()]
+    file_items = [x for x in os.scandir(debloater_list_path) if x.is_file()]  # is List[os.DirEntry]
     package_list = list([])
     for file in file_items:
         item_ext = file.name.split(".")[-1]
@@ -314,7 +345,7 @@ def lambda_enrich_package(package: str, debloat_list: pd.DataFrame) -> pd.Series
 #                                dearPyGUI                                      #
 # ###############################################################################
 
-def default_filter_state():
+def set_default_filter_state() -> NoReturn:
     set_value("text_filter_keywords", "")
     set_value("button_filter_type", 0)
     set_value("button_filter_active", 0)
@@ -333,7 +364,7 @@ def filter_dataframe(df: pd.DataFrame, column: str, filter_val: int) -> pd.DataF
         return df
 
 
-def update_table():
+def update_table() -> NoReturn:
     global package_data, table_dimension, package_columns, debloat_columns
     type_data = filter_dataframe(package_data, "type", get_value("button_filter_type"))
     type_data.loc[:, "active"] = type_data["enabled"] & type_data["installed"]
@@ -352,14 +383,14 @@ def update_table():
     # TODO: first col should be double as wide, not possible ATM, table-api is getting replaced future dearPyGui release
 
 
-def update_data():
+def update_data() -> NoReturn:
     global device, package_data, debloat_data
     # TODO: add fetch from device here
     package_data = read_package_list(device)
     package_data = enrich_package_list(package_data, debloat_data)
 
 
-def update_buttons():
+def update_buttons() -> NoReturn:
     global is_connected
     configure_item("button_disconnect", label="Disconnect Device" if is_connected else "Connect Device")
     configure_item("button_update_data", enabled=is_connected)
@@ -371,16 +402,16 @@ def update_buttons():
     configure_item("button_filter_reset", enabled=is_connected)
 
 
-def filter_update_callback(sender, data):
+def filter_update_callback(sender, data) -> NoReturn:
     update_table()
 
 
-def filter_reset_callback(sender, data):
-    default_filter_state()
+def filter_reset_callback(sender, data) -> NoReturn:
+    set_default_filter_state()
     update_table()
 
 
-def connect_button_callback(sender, data):
+def connect_button_callback(sender, data) -> NoReturn:
     global device, user, package_data, debloat_data, is_connected, adb_key_file_path, package_columns, debloat_columns
     if is_connected:
         device.close()  # NOTE: not working properly for USB-Device
@@ -389,6 +420,7 @@ def connect_button_callback(sender, data):
         log_info(f"Disconnected from device", logger="debuglog")
     else:
         device = connect_device_usb(adb_key_file_path)
+        get_device_properties(device)
         users = get_device_users(device)
         if len(users) > 1:
             log_info("NOTE: there are several users, will choose first one in list!", logger="debuglog")
@@ -400,12 +432,12 @@ def connect_button_callback(sender, data):
     update_buttons()
 
 
-def update_button_callback(sender, data):
+def update_button_callback(sender, data) -> NoReturn:
     update_data()
     update_table()
 
 
-def save_button_callback(sender, data):
+def save_button_callback(sender, data) -> NoReturn:
     global debloat_data, package_data, local_file_path, csv_delimiter, csv_encoding, csv_decimal
     log_info("will save package-data as csv (local_file_path)", logger="debuglog")
     try:
@@ -472,11 +504,11 @@ def update_selection_list() -> NoReturn:
         log_info(f"package selection: {table_selection}", logger="debuglog")
 
 
-def table_callback(sender, data):
+def table_callback(sender, data) -> NoReturn:
     update_selection_list()
 
 
-def packages_enable_callback(sender, data):
+def packages_enable_callback(sender, data) -> NoReturn:
     global table_selection, device, user
     for package in table_selection:
         log_info(f"will enable '{package}'", logger="debuglog")
@@ -485,7 +517,7 @@ def packages_enable_callback(sender, data):
     update_table()
 
 
-def packages_disable_callback(sender, data):
+def packages_disable_callback(sender, data) -> NoReturn:
     global table_selection, device, user
     for package in table_selection:
         log_info(f"will disable '{package}'", logger="debuglog")
@@ -494,7 +526,7 @@ def packages_disable_callback(sender, data):
     update_table()
 
 
-def packages_install_callback(sender, data):
+def packages_install_callback(sender, data) -> NoReturn:
     global table_selection, device, user
     for package in table_selection:
         log_info(f"will install '{package}'", logger="debuglog")
@@ -503,7 +535,7 @@ def packages_install_callback(sender, data):
     update_table()
 
 
-def packages_uninstall_callback(sender, data):
+def packages_uninstall_callback(sender, data) -> NoReturn:
     global table_selection, device, user
     for package in table_selection:
         log_info(f"will uninstall '{package}'", logger="debuglog")
@@ -512,7 +544,7 @@ def packages_uninstall_callback(sender, data):
     update_table()
 
 
-def window_resize_callback(sender, data):
+def window_resize_callback(sender, data) -> NoReturn:
     global table_height_offset, window_height
     window_size = get_main_window_size()
     if window_size[1] != window_height:
@@ -533,6 +565,8 @@ if __name__ == '__main__':
 
     user: int = 0
     device: AdbDevice = None
+    device_name: str = None
+    device_android_version = 0
     debloat_data: pd.DataFrame = parse_debloat_lists()
     package_data: pd.DataFrame = pd.DataFrame(columns=package_columns + debloat_columns)
     is_connected: bool = False
@@ -672,11 +706,13 @@ if __name__ == '__main__':
                    filter=False)
         configure_item("debuglog", auto_scroll=True)  # TODO: file bugreport, auto_scroll=True in initializer does not work
 
+    # TODO: just define objects in main, config later in start-routine, can replace/extend the update-gui callback
+    # TODO: bring logger to second tab, brings cleaner interface
     # TODO: add a notification, that info is about to be improved
     start_dearpygui(primary_window="main")
     stop_dearpygui()
 
-# TODO: first unfinished cmd line version
+# TODO: initial unfinished (and now most likely incompatible) cmd line version
 '''
 if __name__ == '__main__':
     device = connect_device_usb(adb_key_file_path)
