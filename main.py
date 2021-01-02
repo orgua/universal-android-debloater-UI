@@ -214,7 +214,7 @@ def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall
         return False
     # TODO: first find it, do nothing otherwise
     # sdk > 21 seems to need "--user 0"
-    cmd_option = "--user {_user}" if device_android_sdk > 21 else ""
+    cmd_option = f"--user {_user}" if device_android_sdk > 21 else ""
     cmd1 = f"am force-stop {package}"
     cmd2 = f"pm disable-user {cmd_option} {package}"
     cmd3 = f"pm uninstall -k {cmd_option} {package}"  # "-k" implies to NOT delete user data
