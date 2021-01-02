@@ -132,3 +132,4 @@ dmypy.json
 adb_key*
 uad/
 *.txt
+*.csv

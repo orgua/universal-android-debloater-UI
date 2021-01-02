@@ -10,11 +10,11 @@ NOTE: this is a prototype for now
   - runs on Python and dearpygui
 - should support all versions of Android
   - but only android 10 is tested right now
-- check packages on device against packages known to debloater
+- check packages on device against packages known to debloater-tool
 - filter for package-type, keywords, enable-status and remove-recommendation
 - packages can be enabled, disabled, installed and uninstalled
-- save current package data as csv locally
-- auto-save meta-data on device
+- manually save current package data as csv locally
+- auto-save meta-data on device (info stays even if adb does not show it anymore)
 - resizing windows adapts the table
 - log of adb operations - timestamp, device, shell-operation and response
 
@@ -47,7 +47,6 @@ NOTE: this is a prototype for now
 ### Todo
 
 - find a way to make first column wider, not possible atm
-- auto save meta-data on device
 - (tested) support for older android versions
 - better meta-data support for known packages
 - generate binaries, mostly windows because linux and mac already ship with python
@@ -62,3 +61,4 @@ NOTE: this is a prototype for now
   - description: text like in current lists
   - replacement_recommended: some thing open source and light on resources, similar fn
 - better packet info could be stored on a per-file basis or like now in brand specific files, but maybe switch to yaml or similar
+- cleanup source, commiting to gui would save 1/5 LOC, but make future cli harder 

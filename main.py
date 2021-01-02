@@ -52,15 +52,15 @@ csv_encoding = "utf-8-sig"  # unicode
 csv_decimal = ","  # the german way is ","
 
 debloat_columns = ["found_info", "is_safe", "source_file", "source_pos", "source_range", "source_descr"]
-package_columns = ["package", "type", "enabled", "installed"]
+package_columns = ["package", "type", "enabled", "installed", "via_adb"]
 program_name = "Universal Android Debloater UI - v0.3 Alpha"
 adb_sleep = 0.5  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
 
 # assemble config
 adb_key_file_path = local_folder_path + adb_key_file
-remote_file_path = remote_save_path + save_file_name + "." + save_file_extension
-local_device_file_path = local_folder_path + save_file_name + "_remote." + save_file_extension
-local_file_path = local_folder_path + save_file_name + "." + save_file_extension
+remote_package_file_path = remote_save_path + save_file_name + "." + save_file_extension
+local_backup_package_file_path = local_folder_path + save_file_name + "_remote_backup." + save_file_extension
+local_package_file_path = local_folder_path + save_file_name + "." + save_file_extension
 package_option_names = [option[1] for option in package_options]
 
 # ###############################################################################
@@ -126,25 +126,43 @@ def check_device_availability(_device: AdbDevice) -> bool:
     return is_available
 
 
-def pull_device_package_list_backup(_device: AdbDevice) -> int:
-    global remote_file_path, local_device_file_path
+def pull_file_from_device(_device: AdbDevice, _remote_file_path: str, _local_file_path: str) -> int:
     if not check_device_availability(_device):
         return 0
-    mode, size, mtime = _device.stat(remote_file_path)
+    mode, size, mtime = _device.stat(_remote_file_path)
     if size > 0:
-        _device.pull(remote_file_path, local_device_file_path)
+        _device.pull(_remote_file_path, _local_file_path)
+        print(f"-> pulled file size = {size} byte, file = '{_remote_file_path}'")
         # time.sleep(adb_sleep)
-    print(f"-> pulled file size = {size} byte, file = {remote_file_path}")
+    else:
+        print(f"-> failed pulling file = '{_remote_file_path}'")
     return size
 
 
-def push_device_package_list_backup(_device: AdbDevice, _local_file_path: str) -> NoReturn:
-    global remote_file_path
+def push_device_package_list_backup(_device: AdbDevice, _local_file_path: str, _remote_file_path: str) -> NoReturn:
     if not os.path.exists(_local_file_path) or not check_device_availability(_device):
         return
-    _device.push(_local_file_path, remote_file_path)
+    _device.push(_local_file_path, _remote_file_path)
     # time.sleep(adb_sleep)
-    print(f"-> pushed file to device, file = {remote_file_path}")
+    print(f"-> pushed file to device, file = '{_remote_file_path}'")
+
+
+def restore_device_package_list(_device: AdbDevice) -> pd.DataFrame:
+    global remote_package_file_path, local_backup_package_file_path
+    size = pull_file_from_device(_device, remote_package_file_path, local_backup_package_file_path)
+    if size > 0:
+        return pd.read_csv(local_backup_package_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
+    else:
+        return pd.DataFrame(columns=package_columns + debloat_columns[1:3])
+
+
+def backup_device_package_list(_device: AdbDevice, packages: pd.DataFrame) -> bool:
+    global package_columns, debloat_columns, csv_decimal, csv_delimiter, csv_encoding
+    global local_backup_package_file_path, remote_package_file_path
+    packages_filtered = packages[package_columns + debloat_columns[1:3]]
+    packages_filtered.to_csv(local_backup_package_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
+    push_device_package_list_backup(_device, local_backup_package_file_path, remote_package_file_path)
+    return True
 
 
 def get_device_properties(_device: AdbDevice) -> str:
@@ -203,13 +221,14 @@ def read_package_list(_device: AdbDevice) -> pd.DataFrame:
     data.loc[:, "type"] = (data["sys_EN_pUninst"] | data["sys_DIS_pUninst"])  # True == System
     data.loc[:, "enabled"] = data["sys_EN_pUninst"] | data["3rd_EN_pUninst"]
     data.loc[:, "installed"] = data["sys_EN"] | data["sys_DIS"] | data["3rd_EN"] | data["3rd_DIS"]
+    data.loc[:, "via_adb"] = True
     print(f"-> read package lists, got {len(data)} entries")
     return data[package_columns]
 
 
 # adb halt, disable, uninstall program
 def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall: bool = False) -> bool:
-    global device_name
+    global device_name, device_android_sdk
     if not check_device_availability(_device):
         return False
     # TODO: first find it, do nothing otherwise
@@ -383,9 +402,13 @@ def update_table() -> NoReturn:
 
 def update_data() -> NoReturn:
     global device, package_data, debloat_data
-    # TODO: add fetch from device here
-    package_data = read_package_list(device)
-    package_data = enrich_package_list(package_data, debloat_data)
+    package_data1 = restore_device_package_list(device)
+    package_data1["via_adb"] = False
+    package_data2 = read_package_list(device)
+    package_data3 = pd.concat([package_data1, package_data2], ignore_index=True)
+    package_data4 = package_data3.sort_values(by="via_adb", ascending=False).groupby("package").first().reset_index()
+    package_data = enrich_package_list(package_data4, debloat_data)
+    log_info(f"read {len(package_data)} packages, {len(package_data[package_data['via_adb'] == False])} only via backup (not adb)", logger="debuglog")
 
 
 def update_buttons() -> NoReturn:
@@ -412,7 +435,7 @@ def filter_reset_callback(sender, data) -> NoReturn:
 def connect_button_callback(sender, data) -> NoReturn:
     global device, user, package_data, debloat_data, is_connected, adb_key_file_path, package_columns, debloat_columns, device_android_sdk
     if is_connected:
-        device.close()  # NOTE: not working properly for USB-Device
+        device.close()
         device = None
         package_data = pd.DataFrame(columns=package_columns + debloat_columns)
         log_info(f"Disconnected from device", logger="debuglog")
@@ -441,7 +464,7 @@ def update_button_callback(sender, data) -> NoReturn:
 
 
 def save_button_callback(sender, data) -> NoReturn:
-    global debloat_data, package_data, local_file_path, csv_delimiter, csv_encoding, csv_decimal
+    global debloat_data, package_data, local_package_file_path, csv_delimiter, csv_encoding, csv_decimal
     log_info("will save package-data as csv (local_file_path)", logger="debuglog")
     try:
         # TODO: only for debug for now
@@ -449,9 +472,9 @@ def save_button_callback(sender, data) -> NoReturn:
     except PermissionError:
         log_error(f"file with debloat_data could not be saved, seems to be open in another program", logger="debuglog")
     try:
-        package_data.to_csv(local_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
+        package_data.to_csv(local_package_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
     except PermissionError:
-        log_error(f"file {local_file_path} could not be saved, seems to be open in another program", logger="debuglog")
+        log_error(f"file {local_package_file_path} could not be saved, seems to be open in another program", logger="debuglog")
 
 
 def show_package_info(package: str) -> NoReturn:
@@ -512,37 +535,46 @@ def table_callback(sender, data) -> NoReturn:
 
 
 def packages_enable_callback(sender, data) -> NoReturn:
-    global table_selection, device, user
+    global table_selection, device, user, package_data
     for package in table_selection:
         log_info(f"will enable '{package}'", logger="debuglog")
         enable_package(device, package, user, with_install=False)
+        package_data.loc[package_data["package"] == package, "enabled"] = True
+    backup_device_package_list(device, package_data)
     update_data()
     update_table()
+    # TODO: buttons can supply data - the 4 similar FNs can be ONE
 
 
 def packages_disable_callback(sender, data) -> NoReturn:
-    global table_selection, device, user
+    global table_selection, device, user, package_data
     for package in table_selection:
         log_info(f"will disable '{package}'", logger="debuglog")
         disable_package(device, package, user, with_uninstall=False)
+        package_data.loc[package_data["package"] == package, "enabled"] = False
+    backup_device_package_list(device, package_data)
     update_data()
     update_table()
 
 
 def packages_install_callback(sender, data) -> NoReturn:
-    global table_selection, device, user
+    global table_selection, device, user, package_data
     for package in table_selection:
         log_info(f"will install '{package}'", logger="debuglog")
         enable_package(device, package, user, with_install=True)
+        package_data.loc[package_data["package"] == package, "installed"] = True
+    backup_device_package_list(device, package_data)
     update_data()
     update_table()
 
 
 def packages_uninstall_callback(sender, data) -> NoReturn:
-    global table_selection, device, user
+    global table_selection, device, user, package_data
     for package in table_selection:
         log_info(f"will uninstall '{package}'", logger="debuglog")
         disable_package(device, package, user, with_uninstall=True)
+        package_data.loc[package_data["package"] == package, "installed"] = False
+    backup_device_package_list(device, package_data)
     update_data()
     update_table()
 
