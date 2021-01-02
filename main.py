@@ -53,7 +53,7 @@ csv_decimal = ","  # the german way is ","
 
 debloat_columns = ["found_info", "is_safe", "source_file", "source_pos", "source_range", "source_descr"]
 package_columns = ["package", "type", "enabled", "installed", "via_adb"]
-program_name = "Universal Android Debloater UI - v0.3 Alpha"
+program_name = "Universal Android Debloater UI - v0.4 Alpha"
 adb_sleep = 0.5  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
 
 # assemble config

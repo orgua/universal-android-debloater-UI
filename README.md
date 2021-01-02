@@ -1,7 +1,8 @@
 ## Universal Android Debloater UI
 
 This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1nst0n/universal-android-debloater)
-NOTE: this is a prototype for now
+
+**NOTE: this is a prototype for now**
 
 ### Features:
 
@@ -48,6 +49,8 @@ NOTE: this is a prototype for now
 
 - find a way to make first column wider, not possible atm
 - (tested) support for older android versions
+- connect via TCP
+- cleanup GUI, bring adb-output and debug to separate tabs
 - better meta-data support for known packages
 - generate binaries, mostly windows because linux and mac already ship with python
   - https://pypi.org/project/crossroad/
