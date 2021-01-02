@@ -53,8 +53,8 @@ csv_decimal = ","  # the german way is ","
 
 debloat_columns = ["found_info", "is_safe", "source_file", "source_pos", "source_range", "source_descr"]
 package_columns = ["package", "type", "enabled", "installed"]
-program_name = "Universal Android Debloater UI - v0.2 Alpha"
-adb_sleep = 0.2  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
+program_name = "Universal Android Debloater UI - v0.3 Alpha"
+adb_sleep = 0.5  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
 
 # assemble config
 adb_key_file_path = local_folder_path + adb_key_file
@@ -110,7 +110,7 @@ def connect_device_usb(key_file_path: str) -> AdbDevice:
 
     _device = AdbDeviceUsb()  # TODO: there can be more than one phone, determine with "available", "list" or similar
     _device.connect(rsa_keys=[signer], auth_timeout_s=30)
-    time.sleep(adb_sleep)
+    # time.sleep(adb_sleep)
     if check_device_availability(_device):
         print(f"-> connected to device per USB")
     return _device
@@ -120,7 +120,7 @@ def check_device_availability(_device: AdbDevice) -> bool:
     if _device is None:
         return False
     is_available = _device.available  # TODO: disconnected phone seems still to be available
-    time.sleep(adb_sleep)
+    # time.sleep(adb_sleep)
     if not is_available:
         sys.exit("Error while connecting to device")
     return is_available
@@ -133,7 +133,7 @@ def pull_device_package_list_backup(_device: AdbDevice) -> int:
     mode, size, mtime = _device.stat(remote_file_path)
     if size > 0:
         _device.pull(remote_file_path, local_device_file_path)
-        time.sleep(adb_sleep)
+        # time.sleep(adb_sleep)
     print(f"-> pulled file size = {size} byte, file = {remote_file_path}")
     return size
 
@@ -143,28 +143,19 @@ def push_device_package_list_backup(_device: AdbDevice, _local_file_path: str) -
     if not os.path.exists(_local_file_path) or not check_device_availability(_device):
         return
     _device.push(_local_file_path, remote_file_path)
-    time.sleep(adb_sleep)
+    # time.sleep(adb_sleep)
     print(f"-> pushed file to device, file = {remote_file_path}")
 
 
-def filter_getprop(getprop: str, filter: str) -> str:
-    for prop in getprop:
-        if filter in prop:
-            return prop.split(":")[1].strip(" []")
-
-
 def get_device_properties(_device: AdbDevice) -> str:
-    global device_name, device_android_version
+    global device_name, device_android_version, device_android_sdk
     if not check_device_availability(_device):
         return ""
-    response = _device.shell("getprop").splitlines()
-    time.sleep(adb_sleep)
-    # TODO: filter ro.build.product, take line, string after that without space, :, []
-    device_name = filter_getprop(response, "ro.product.manufacturer") + " " + filter_getprop(response, "ro.product.device")
-    device_android_version = filter_getprop(response, "ro.build.version.release")
-    # TODO: vary query by android version (getprop)
-    print(f"-> read device properties, got device='{device_name}' with android {device_android_version}")
-    return response
+    device_name = _device.shell("getprop ro.product.manufacturer").strip("\n\r") + " " + _device.shell("getprop ro.product.device").strip("\n\r")
+    device_android_version = _device.shell("getprop ro.build.version.release").strip("\n\r")
+    device_android_sdk = int(_device.shell("getprop ro.build.version.sdk").strip("\n\r"))
+    print(f"-> read device properties, got device='{device_name}' with android {device_android_version}, sdk={device_android_sdk}")
+    return device_android_sdk
 
 
 def get_device_users(_device: AdbDevice) -> pd.DataFrame:
@@ -172,7 +163,7 @@ def get_device_users(_device: AdbDevice) -> pd.DataFrame:
     if not check_device_availability(_device):
         return pd.DataFrame(columns=user_columns)
     response = _device.shell("pm list users")
-    time.sleep(adb_sleep)
+    # time.sleep(adb_sleep)
     user_list = list([])
     for line in response.splitlines():
         if not "UserInfo{" in line:
@@ -199,7 +190,7 @@ def read_package_list(_device: AdbDevice) -> pd.DataFrame:
     for option in package_options:
         opt_name = option[1]
         response = _device.shell(package_list_query + option[0])
-        time.sleep(adb_sleep)
+        # time.sleep(adb_sleep)
         for line in response.splitlines():
             if line[0:8].lower() != "package:":
                 continue
@@ -222,11 +213,14 @@ def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall
     if not check_device_availability(_device):
         return False
     # TODO: first find it, do nothing otherwise
+    # sdk > 21 seems to need "--user 0"
+    cmd_option = "--user {_user}" if device_android_sdk > 21 else ""
     cmd1 = f"am force-stop {package}"
-    cmd2 = f"pm disable-user --user {_user} {package}"
-    cmd3 = f"pm uninstall -k --user {_user} {package}"
+    cmd2 = f"pm disable-user {cmd_option} {package}"
+    cmd3 = f"pm uninstall -k {cmd_option} {package}"  # "-k" implies to NOT delete user data
+    cmd4 = f"pm clear {cmd_option} {package}"
     response1 = _device.shell(cmd1)
-    # TODO: it could be that "am stopservice" is the new one >= marshmellow, the other one <= jelly bean
+    # TODO: it could be that "am stopservice" is the new one >= marshmellow/23, the other one <= jelly bean
     response2 = _device.shell(cmd2)
     print(f"-> stopping  package '{package}' with response '{response1}'")
     print(f"-> disabling package '{package}' with response '{response2}'")
@@ -238,6 +232,9 @@ def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall
         print(f"-> uninstall package '{package}' with response '{response3}'")
         save_to_log(cmd3, device_name, response3)
         time.sleep(adb_sleep)
+    response4 = _device.shell(cmd4)
+    print(f"-> clear userdata of package '{package}' with response '{response4}'")
+    save_to_log(cmd4, device_name, response4)
     return True
 
 
@@ -247,6 +244,7 @@ def enable_package(_device: AdbDevice, package: str, _user: int, with_install: b
     cmd1 = f"cmd package install-existing {package}"
     cmd2 = f"pm enable {package}"
     cmd3 = f"am startservice {package}"
+    # TODO: sdk26+ requires services in the foreground "am start-foreground-service"
     if with_install:
         response1 = _device.shell(cmd1)
         print(f"-> install package '{package}' with response '{response1}'")
@@ -412,7 +410,7 @@ def filter_reset_callback(sender, data) -> NoReturn:
 
 
 def connect_button_callback(sender, data) -> NoReturn:
-    global device, user, package_data, debloat_data, is_connected, adb_key_file_path, package_columns, debloat_columns
+    global device, user, package_data, debloat_data, is_connected, adb_key_file_path, package_columns, debloat_columns, device_android_sdk
     if is_connected:
         device.close()  # NOTE: not working properly for USB-Device
         device = None
@@ -421,11 +419,16 @@ def connect_button_callback(sender, data) -> NoReturn:
     else:
         device = connect_device_usb(adb_key_file_path)
         get_device_properties(device)
+        log_info(f"connected device='{device_name}', android {device_android_version}", logger="debuglog")
         users = get_device_users(device)
         if len(users) > 1:
             log_info("NOTE: there are several users, will choose first one in list!", logger="debuglog")
             log_info(str(users), logger="debuglog")
         user = users["index"].iloc[0]
+        if device_android_sdk < 26:
+            log_error("WARNING: Your android version is old (< 8.0).", logger="debuglog")
+            log_error("Uninstalled packages can't be restored.", logger="debuglog")
+            log_error("The GUI won't stop you from doing so", logger="debuglog")
         update_data()
     update_table()
     is_connected = check_device_availability(device)
@@ -567,6 +570,7 @@ if __name__ == '__main__':
     device: AdbDevice = None
     device_name: str = None
     device_android_version = 0
+    device_android_sdk = 0
     debloat_data: pd.DataFrame = parse_debloat_lists()
     package_data: pd.DataFrame = pd.DataFrame(columns=package_columns + debloat_columns)
     is_connected: bool = False
