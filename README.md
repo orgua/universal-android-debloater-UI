@@ -31,6 +31,7 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 
 ### Usage
 
+- WARNING AS ALWAYS: always make a full nandroid / twrp backup before changing the system!
 - config your phone to allow adb shell (see debloater project for details)
 - run main.py -> UI should appear
 - connect your device
