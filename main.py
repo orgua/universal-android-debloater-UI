@@ -121,6 +121,7 @@ def check_device_availability(_device: AdbDevice) -> bool:
         return False
     is_available = _device.available  # TODO: disconnected phone seems still to be available
     # time.sleep(adb_sleep)
+    # TODO: add additional avail test with: try catch for int(_device.shell("getprop ro.build.version.sdk").strip("\n\r")) > 0
     if not is_available:
         sys.exit("Error while connecting to device")
     return is_available
@@ -132,7 +133,7 @@ def pull_file_from_device(_device: AdbDevice, _remote_file_path: str, _local_fil
     mode, size, mtime = _device.stat(_remote_file_path)
     if size > 0:
         _device.pull(_remote_file_path, _local_file_path)
-        print(f"-> pulled file size = {size} byte, file = '{_remote_file_path}'")
+        print(f"-> pulled file '{_remote_file_path}' from device, size = {size} byte")
         # time.sleep(adb_sleep)
     else:
         print(f"-> failed pulling file = '{_remote_file_path}'")
@@ -151,6 +152,7 @@ def restore_device_package_list(_device: AdbDevice) -> pd.DataFrame:
     global remote_package_file_path, local_backup_package_file_path
     size = pull_file_from_device(_device, remote_package_file_path, local_backup_package_file_path)
     if size > 0:
+        # TODO: refactor to proper fn with try catch, used at least 3x
         return pd.read_csv(local_backup_package_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
     else:
         return pd.DataFrame(columns=package_columns + debloat_columns[1:3])
@@ -165,10 +167,10 @@ def backup_device_package_list(_device: AdbDevice, packages: pd.DataFrame) -> bo
     return True
 
 
-def get_device_properties(_device: AdbDevice) -> str:
+def get_device_properties(_device: AdbDevice) -> int:
     global device_name, device_android_version, device_android_sdk
     if not check_device_availability(_device):
-        return ""
+        return 0
     device_name = _device.shell("getprop ro.product.manufacturer").strip("\n\r") + " " + _device.shell("getprop ro.product.device").strip("\n\r")
     device_android_version = _device.shell("getprop ro.build.version.release").strip("\n\r")
     device_android_sdk = int(_device.shell("getprop ro.build.version.sdk").strip("\n\r"))
@@ -388,13 +390,16 @@ def update_table() -> NoReturn:
     active_data = filter_dataframe(type_data, "active", get_value("button_filter_active"))
     safe_data = filter_dataframe(active_data, "is_safe", get_value("button_filter_safe"))
     keyword_data = safe_data
+    keyword_data['source_str'] = keyword_data['source_descr'].apply(lambda x: ', '.join(map(str, x)))
     for keyword in get_value("text_filter_keywords").split(" "):
-        keyword_data = keyword_data[keyword_data["package"].str.contains(keyword)]
+        match_package = keyword_data["package"].str.contains(keyword)
+        match_description = keyword_data["source_str"].str.contains(keyword)
+        keyword_data = keyword_data[match_package | match_description]
     keyword_data.loc[:, "type"] = keyword_data["type"].apply(lambda x: "System" if x else "3rd Party")
     data_print = keyword_data[package_columns + debloat_columns[1:-3]]
     set_table_data("table_packages", data_print.values.tolist())
     set_headers("table_packages", data_print.columns.values.tolist())
-    log_info(f"updated table", logger="debuglog")
+    log_info(f"updated table, {len(data_print)} items", logger="debuglog")
     table_dimension = data_print.shape
     update_selection_list()
     # TODO: first col should be double as wide, not possible ATM, table-api is getting replaced future dearPyGui release
@@ -402,7 +407,7 @@ def update_table() -> NoReturn:
 
 def update_data() -> NoReturn:
     global device, package_data, debloat_data
-    package_data1 = restore_device_package_list(device)
+    package_data1 = package_data if (len(package_data) > 0) else restore_device_package_list(device)
     package_data1["via_adb"] = False
     package_data2 = read_package_list(device)
     package_data3 = pd.concat([package_data1, package_data2], ignore_index=True)
@@ -482,6 +487,7 @@ def show_package_info(package: str) -> NoReturn:
     package_info1 = package_data.loc[package_data["package"] == package, debloat_columns[-1]].iloc[0]
     package_info2 = list([])
     # easiest (most stupid) way to shorten strings, because text-field can't handle line breaks
+    # TODO: this should be done earlier on retrieval, we also need a joined version for search (without '#')
     for info in package_info1:
         if len(info) < 60:
             package_info2.append(info)
@@ -492,9 +498,14 @@ def show_package_info(package: str) -> NoReturn:
             package_info2.append(info[0:60])
             package_info2.append(info[60:120])
             package_info2.append(info[120:])
-    package_src = package_data.loc[package_data["package"] == package, debloat_columns[-3]].iloc[0]
     package_file = package_data.loc[package_data["package"] == package, debloat_columns[-4]].iloc[0]  # TODO: optimize
-    package_meta = [package + "\n"] + package_info2 + [f"\nSource {package_file}, Line {package_src}"]
+    package_loc = package_data.loc[package_data["package"] == package, debloat_columns[-3]].iloc[0]
+    if len(package_file) > 0:
+        package_source = [f"\nSource {package_file}, Line {package_loc}"]
+    else:
+        package_source = ["package currently not known to debloat-project"]
+    package_meta = [package + "\n"] + package_info2 + package_source
+
     set_value("package_info", "\n".join(package_meta))
 
 
@@ -526,8 +537,9 @@ def update_selection_list() -> NoReturn:
     configure_item("button_sel_disable", enabled=has_selection)
     configure_item("button_sel_install", enabled=has_selection)
     configure_item("button_sel_uninstall", enabled=has_selection)
+    # configure_item("button_sel_clear_ud", enabled=has_selection)
     if len(table_selection) > 0:
-        log_info(f"package selection: {table_selection}", logger="debuglog")
+        log_info(f"{len(table_selection)} packages selected: {table_selection}", logger="debuglog")
 
 
 def table_callback(sender, data) -> NoReturn:
@@ -578,6 +590,21 @@ def packages_uninstall_callback(sender, data) -> NoReturn:
     update_data()
     update_table()
 
+
+# TODO: just a test for now
+def packages_clear_userdata_callback(sender, data) -> NoReturn:
+    global table_selection, device, user, package_data
+    for package in table_selection:
+        log_info(f"will clear user-data for '{package}'", logger="debuglog")
+        cmd_option = f"--user {user}" if device_android_sdk > 21 else ""
+        cmd4 = f"pm clear {cmd_option} {package}"
+        response4 = device.shell(cmd4)
+        print(f"-> clear userdata of package '{package}' with response '{response4}'")
+        save_to_log(cmd4, device_name, response4)
+        time.sleep(adb_sleep)
+    backup_device_package_list(device, package_data)
+    update_data()
+    update_table()
 
 def window_resize_callback(sender, data) -> NoReturn:
     global table_height_offset, window_height
@@ -647,7 +674,7 @@ if __name__ == '__main__':
                        hint="",
                        label="",
                        width=200,
-                       tip="enter custom keywords to filter list",
+                       tip="enter custom keywords to filter list (package name and description)",
                        enabled=is_connected,
                        callback=filter_update_callback)
 
@@ -724,6 +751,15 @@ if __name__ == '__main__':
                    tip="",
                    enabled=is_connected,
                    callback=packages_uninstall_callback)
+
+        '''
+        add_same_line(spacing=20)
+        add_button("button_sel_clear_ud",
+                   label="Clear Userdata Selected (DO NOT USE - JUST A TEST)",
+                   tip="",
+                   enabled=is_connected,
+                   callback=packages_clear_userdata_callback)
+        '''
 
         add_spacing(count=7, name="spacing3")
         add_input_text("package_info",
