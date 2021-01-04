@@ -84,12 +84,12 @@ def git_update() -> NoReturn:
 #                                LogFile                                        #
 # ###############################################################################
 
-def save_to_log(action: str, device: str, response: str) -> NoReturn:
+def save_to_log(_device: str, package: str, action: str, response: str) -> NoReturn:
     global adb_log_file, local_folder_path
     with open(local_folder_path + adb_log_file, 'a') as file:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        file.write(f"{timestamp} - {device} - '{action}': ")
-        file.write(response.replace("\n", " | ").replace("\r", " | ").strip("\t") + "\n")
+        file.write(f"{timestamp} - {_device} - {package} - '{action}': ")
+        file.write(response.replace("\n", ";").replace("\r", ";").strip("\t") + "\n")
 
 # ###############################################################################
 #                                ADB                                            #
@@ -245,17 +245,17 @@ def disable_package(_device: AdbDevice, package: str, _user: int, with_uninstall
     response2 = _device.shell(cmd2)
     print(f"-> stopping  package '{package}' with response '{response1}'")
     print(f"-> disabling package '{package}' with response '{response2}'")
-    save_to_log(cmd1, device_name, response1)
-    save_to_log(cmd2, device_name, response2)
+    # save_to_log(device_name, package, cmd1, response1)  # disabled non-critical cmd to keep log clean
+    save_to_log(device_name, package, cmd2, response2)
     time.sleep(adb_sleep)
     if with_uninstall:
         response3 = _device.shell(cmd3)
         print(f"-> uninstall package '{package}' with response '{response3}'")
-        save_to_log(cmd3, device_name, response3)
+        save_to_log(device_name, package, cmd3, response3)
         time.sleep(adb_sleep)
     response4 = _device.shell(cmd4)
     print(f"-> clear userdata of package '{package}' with response '{response4}'")
-    save_to_log(cmd4, device_name, response4)
+    save_to_log(device_name, package, cmd4, response4)
     return True
 
 
@@ -269,14 +269,14 @@ def enable_package(_device: AdbDevice, package: str, _user: int, with_install: b
     if with_install:
         response1 = _device.shell(cmd1)
         print(f"-> install package '{package}' with response '{response1}'")
-        save_to_log(cmd1, device_name, response1)
+        save_to_log(device_name, package, cmd1, response1)
         time.sleep(adb_sleep)
     response2 = _device.shell(cmd2)
     response3 = _device.shell(cmd3)
     print(f"-> enabling package '{package}' with response '{response2}'")
     print(f"-> starting package '{package}' with response '{response3}'")
-    save_to_log(cmd2, device_name, response2)
-    save_to_log(cmd3, device_name, response3)
+    save_to_log(device_name, package, cmd2, response2)
+    # save_to_log(cmd3, device_name, response3)  # disabled non-critical cmd to keep log clean
     time.sleep(adb_sleep)
     return True
 
