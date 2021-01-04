@@ -2,14 +2,15 @@ from setuptools import setup
 
 setup(
     name='Universal Android Debloater UI',
-    version='0.1',
+    version='0.4',
     packages=['UAD-UI'],
-    #install_requires=['adb-shell', 'adb-shell[async]', 'adb-shell[usb]'],
-    url='https://github.com',
-    license='tbd',
+    install_requires=['adb-shell[async, usb]', 'pandas', 'dearpygui', 'gitpython', 'setuptools'],
+    url='https://github.com/orgua/universal-android-debloater-UI',
+    license='GPL3',
     author='ingmo',
     author_email='name@game.com',
-    description='tdb'
+    description='tdb',
+    entry_points={"GUI": ["uad=__main__:main"]},
 )
 
 # TODO: pip install -r requirements.txt
