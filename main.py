@@ -88,8 +88,8 @@ def save_to_log(action: str, device: str, response: str) -> NoReturn:
     global adb_log_file, local_folder_path
     with open(local_folder_path + adb_log_file, 'a') as file:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        file.write(f"{timestamp} - {device} - '{action}'\n")
-        file.write(response + "\n\n")
+        file.write(f"{timestamp} - {device} - '{action}': ")
+        file.write(response.replace("\n", " | ").replace("\r", " | ").strip("\t") + "\n")
 
 # ###############################################################################
 #                                ADB                                            #
