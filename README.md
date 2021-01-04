@@ -12,6 +12,7 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 - should support all versions of Android
   - but only android 10 is tested right now
 - check packages on device against packages known to debloater-tool
+	- a fresh samsung S10e has ~120 packages that can be disabled without loosing comfort
 - filter for package-type, keywords, enable-status and remove-recommendation
 - packages can be enabled, disabled, installed and uninstalled
 - manually save current package data as csv locally
@@ -20,8 +21,9 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 - log of adb operations - timestamp, device, shell-operation and response
 
 
-### Installation
+### Installation & Requirements
 
+- you need a 64bit System due to the dearpygui-framework
 - clone this repository
 - (optional) copy your adb-key to this folder, otherwise a new one is generated and your phone wants confirmation on first connect
 - make sure python 3.6+ is on your system
@@ -43,6 +45,9 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
   - **even some safe packages can ruin your experience if you got no replacement**
   - **watch out for packages that are considered safe but have another device-brand or "pending.sh" as source**
   - information about the packages should be shown as you click on the corresponding row
+- try rebooting and test basic functionality
+- phone shows demanding apps in the battery-usage options and ram-horders can be found in the memory-options (hidden dev menu)
+- deactivate adb after you are finished
   
 ![screenshot](./media/screenshot_alpha.png)
 
@@ -52,6 +57,7 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 - (tested) support for older android versions
 - connect via TCP
 - cleanup GUI, bring adb-output and debug to separate tabs
+- add some examples from different manufacturers
 - better meta-data support for known packages
 - generate binaries, mostly windows because linux and mac already ship with python
   - https://pypi.org/project/crossroad/
