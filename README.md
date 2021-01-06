@@ -6,7 +6,7 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 
 ### Features:
 
-- Linux, Windows and MacOS should be supported (Windows and Linux is tested)
+- Linux, Windows and MacOS should be supported (Windows and Linux is tested and works)
   - runs on Python and dearpygui
 - should support all versions of Android
   - but only android 10 is tested right now
@@ -25,7 +25,7 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 
 - you need a 64bit System due to the dearpygui-framework
 - make sure python 3.6+ is on your system
-- installation and execution need a terminal for now (most probably with admin rights)
+- installation and execution need a terminal for now
 - probably not every step is necessary on your system
 - (optional) copy your adb-key to this folder, otherwise a new one is generated and your phone wants a confirmation on first connect
 - (optional) to not mess with you python-setup, you can setup a [virtual-env](https://uoa-eresearch.github.io/eresearch-cookbook/recipe/2014/11/26/python-virtual-env/) 
@@ -41,17 +41,22 @@ git clone https://github.com/orgua/universal-android-debloater-UI.git
 cd universal-android-debloater-UI
 
 pip install -r requirements.txt
+
+py main_gui.py
 ```
 
 **Windows 10**:
 
 - download and install the newest python with pip
 - download and decompress these project sources into a folder
-- open cmd-terminal (with admin-rights)
+- open cmd-terminal (with admin-rights if you don't plan to use virtual-env and your python install is system-wide)
 - run:
 
 ```console
+pip install --upgrade pip
 pip install -r requirements.txt
+
+py main_gui.py
 ```
 
 **MacOS** (with python and git installed):
@@ -64,25 +69,27 @@ git clone https://github.com/orgua/universal-android-debloater-UI.git
 cd universal-android-debloater-UI
 
 pip install -r requirements.txt
+
+py main_gui.py
  ```
 
 ### Usage
 
 - WARNING AS ALWAYS: always make a full nandroid / twrp backup before changing the system!
 - config your phone to allow adb shell (see debloater project for details)
-- run 'main_gui.py' -> UI should appear
+- run `py main_gui.py` -> UI should appear
 - connect your device
 - data is automatically saved and fetched on device on local data-partition as "universal_android_debloater_package_list.csv"
   - this ensures that you see uninstalled packages even if adb does not show them anymore
 - you can filter for keywords above the table or for values on specific columns by clicking the cell in the first row
 - make your selection on packages and choose an action below the table, but consider the following warning notes
   - **you should only remove packages that are marked safe**
-  - **even some safe packages can ruin your experience if you got no replacement**
+  - **even some safe packages can ruin your experience if you got no replacement (launcher, keyboard, ..)**
   - **watch out for packages that are considered safe but have another device-brand or "pending.sh" as source**
   - information about the packages should be shown as you click on the corresponding row
 - try rebooting and test basic functionality
 - phone shows demanding apps in the battery-usage options and ram-horders can be found in the memory-options (hidden dev menu)
-- deactivate adb after you are finished
+- (optional) deactivate adb after you are finished
   
 ![screenshot](./media/screenshot_alpha.png)
 

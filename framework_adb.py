@@ -35,7 +35,7 @@ def connect_device_usb(key_file_path: str) -> AdbDevice:
         print(f"ERROR: is device connected and ADB activated?")
     except DevicePathInvalidError:
         _device = None
-        print("ERROR: Installation seems incomplete, adb-shell[usb] is missing")
+        print("ERROR: Installation seems incomplete, adb-shell[usb] is missing (or not working as intended) or adb-server is still running on your system")
     if _device is not None:
         _device.connect(rsa_keys=[signer], auth_timeout_s=30)
     # time.sleep(adb_sleep)
@@ -47,7 +47,7 @@ def connect_device_usb(key_file_path: str) -> AdbDevice:
 def check_device_availability(_device: AdbDevice) -> bool:
     if _device is None:
         return False
-    is_available = _device.available  # TODO: disconnected phone seems still to be available
+    is_available = _device.available
     # time.sleep(adb_sleep)
     # TODO: add additional avail test with: try catch for int(_device.shell("getprop ro.build.version.sdk").strip("\n\r")) > 0
     if not is_available:
