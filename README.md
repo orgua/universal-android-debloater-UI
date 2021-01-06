@@ -73,6 +73,8 @@ pip install -r requirements.txt
 py main_gui.py
  ```
 
+**NOTE: there seems to be a problem with adb-shell[usb] (beta) - tool is therefore not working**
+
 ### Usage
 
 - WARNING AS ALWAYS: always make a full nandroid / twrp backup before changing the system!
