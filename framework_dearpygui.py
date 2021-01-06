@@ -214,7 +214,7 @@ def table_callback(sender, data) -> NoReturn:
 def packages_enable_callback(sender, data) -> NoReturn:
     global table_selection, device, user, package_data
     for package in table_selection:
-        log_info(f"will enable '{package}'", logger="debuglog")
+        log_info(f"enabling '{package}'", logger="debuglog")
         enable_package(device, package, user, with_install=False)
         package_data.loc[package_data["package"] == package, "enabled"] = True
     backup_device_package_list(device, package_data)
@@ -226,7 +226,7 @@ def packages_enable_callback(sender, data) -> NoReturn:
 def packages_disable_callback(sender, data) -> NoReturn:
     global table_selection, device, user, package_data
     for package in table_selection:
-        log_info(f"will disable '{package}'", logger="debuglog")
+        log_info(f"disabling '{package}'", logger="debuglog")
         disable_package(device, package, user, with_uninstall=False)
         package_data.loc[package_data["package"] == package, "enabled"] = False
     backup_device_package_list(device, package_data)
@@ -237,7 +237,7 @@ def packages_disable_callback(sender, data) -> NoReturn:
 def packages_install_callback(sender, data) -> NoReturn:
     global table_selection, device, user, package_data
     for package in table_selection:
-        log_info(f"will install '{package}'", logger="debuglog")
+        log_info(f"installing '{package}'", logger="debuglog")
         enable_package(device, package, user, with_install=True)
         package_data.loc[package_data["package"] == package, "installed"] = True
     backup_device_package_list(device, package_data)
@@ -248,7 +248,7 @@ def packages_install_callback(sender, data) -> NoReturn:
 def packages_uninstall_callback(sender, data) -> NoReturn:
     global table_selection, device, user, package_data
     for package in table_selection:
-        log_info(f"will uninstall '{package}'", logger="debuglog")
+        log_info(f"uninstalling '{package}'", logger="debuglog")
         disable_package(device, package, user, with_uninstall=True)
         package_data.loc[package_data["package"] == package, "installed"] = False
     backup_device_package_list(device, package_data)
@@ -260,7 +260,7 @@ def packages_uninstall_callback(sender, data) -> NoReturn:
 def packages_clear_userdata_callback(sender, data) -> NoReturn:
     global table_selection, device, user, package_data
     for package in table_selection:
-        log_info(f"will clear user-data for '{package}'", logger="debuglog")
+        log_info(f"clearing user-data for '{package}'", logger="debuglog")
         cmd_option = f"--user {user}" if device_android_sdk > 21 else ""
         cmd4 = f"pm clear {cmd_option} {package}"
         response4 = device.shell(cmd4)
@@ -271,6 +271,7 @@ def packages_clear_userdata_callback(sender, data) -> NoReturn:
     update_data()
     update_table()
 
+
 def window_resize_callback(sender, data) -> NoReturn:
     global table_height_offset, window_height
     window_size = get_main_window_size()
@@ -279,10 +280,9 @@ def window_resize_callback(sender, data) -> NoReturn:
         table_height = window_height - table_height_offset
         configure_item("table_packages", height=table_height)
 
+
 def program_start_callback(sender, data) -> NoReturn:
     global debloat_data
-    log_info(f"will update local git-repo of debloat-scripts", logger="debuglog")
+    log_info(f"updating local git-repo of debloat-scripts", logger="debuglog")
     git_update()
     debloat_data = parse_debloat_lists()
-
-

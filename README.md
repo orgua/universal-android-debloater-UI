@@ -6,13 +6,13 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 
 ### Features:
 
-- Linux, Windows and MacOS should be supported
-  - but only Windows is tested right now
+- Linux, Windows and MacOS should be supported (Windows and Linux is tested)
   - runs on Python and dearpygui
 - should support all versions of Android
   - but only android 10 is tested right now
-- check packages on device against packages known to debloater-tool
+- checks packages on device against packages known to debloater-tool
 	- a fresh samsung S10e has ~120 packages that can be disabled without loosing comfort
+    - minimizes wakeups that drain battery, ram-usage, security concerns because of questionable manufacturer / carrier apps
 - filter for package-type, keywords, enable-status and remove-recommendation
 - packages can be enabled, disabled, installed and uninstalled
 - manually save current package data as csv locally
@@ -24,18 +24,53 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 ### Installation & Requirements
 
 - you need a 64bit System due to the dearpygui-framework
-- clone this repository
-- (optional) copy your adb-key to this folder, otherwise a new one is generated and your phone wants confirmation on first connect
 - make sure python 3.6+ is on your system
+- installation and execution need a terminal for now (most probably with admin rights)
+- probably not every step is necessary on your system
+- (optional) copy your adb-key to this folder, otherwise a new one is generated and your phone wants a confirmation on first connect
+- (optional) to not mess with you python-setup, you can setup a [virtual-env](https://uoa-eresearch.github.io/eresearch-cookbook/recipe/2014/11/26/python-virtual-env/) 
+- (optional) if you cloned this repo you can just update by executing `git pull` inside the project folder
+
+**Linux** (tested with Mint):
+
+```console
+sudo apt install python3-pip  
+sudo apt install git
+
+git clone https://github.com/orgua/universal-android-debloater-UI.git
+cd universal-android-debloater-UI
+
+pip install -r requirements.txt
+```
+
+**Windows 10**:
+
+- download and install the newest python with pip
+- download and decompress these project sources into a folder
+- open cmd-terminal (with admin-rights)
 - run:
-  
-        pip install -r requirements.txt
+
+```console
+pip install -r requirements.txt
+```
+
+**MacOS** (with python and git installed):
+
+```console
+sudo easy_install pip
+sudo pip install --upgrade pip
+
+git clone https://github.com/orgua/universal-android-debloater-UI.git
+cd universal-android-debloater-UI
+
+pip install -r requirements.txt
+ ```
 
 ### Usage
 
 - WARNING AS ALWAYS: always make a full nandroid / twrp backup before changing the system!
 - config your phone to allow adb shell (see debloater project for details)
-- run main.py -> UI should appear
+- run 'main_gui.py' -> UI should appear
 - connect your device
 - data is automatically saved and fetched on device on local data-partition as "universal_android_debloater_package_list.csv"
   - this ensures that you see uninstalled packages even if adb does not show them anymore

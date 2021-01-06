@@ -32,10 +32,10 @@ def connect_device_usb(key_file_path: str) -> AdbDevice:
         _device = AdbDeviceUsb()  # TODO: there can be more than one phone, determine with "available", "list" or similar
     except UsbDeviceNotFoundError:
         _device = None
-        print(f"ERROR: is device connected?")
+        print(f"ERROR: is device connected and ADB activated?")
     except DevicePathInvalidError:
         _device = None
-        print("ERROR: is ADB-Mode activated on device?")
+        print("ERROR: Installation seems incomplete, adb-shell[usb] is missing")
     if _device is not None:
         _device.connect(rsa_keys=[signer], auth_timeout_s=30)
     # time.sleep(adb_sleep)
