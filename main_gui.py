@@ -1,17 +1,8 @@
-# Devices to Test:
-# s8 - alexis, https://forum.xda-developers.com/t/alexis-rom-9-1_dtj1_10-2020-patches-27-10-2020-ported-s10-stuffs-s9wallpapers.3753975/
-# s8 - ice mod
-# s10e original
-# op3T lineage
-# op7T lineage
-# samsung A3 2017
-
 from dearpygui.core import *
 from dearpygui.simple import *
 
 import configuration as cfg
 from framework_dearpygui import *
-from framework_misc import git_update
 
 # ###############################################################################
 #                                Program                                        #
@@ -54,10 +45,9 @@ if __name__ == '__main__':
 
         add_same_line(spacing=10)
         add_input_text(name="text_filter_keywords",
-                       hint="",
-                       label="",
-                       width=200,
                        tip="enter custom keywords to filter list (package name and description)",
+                       hint="", label="",
+                       width=200,
                        enabled=False,
                        callback=filter_update_callback)
 
@@ -157,7 +147,7 @@ if __name__ == '__main__':
                    auto_scroll=True, auto_scroll_button=False,
                    copy_button=False, clear_button=False)
 
-    # TODO: just define objects in main, config later in start-routine, can replace/extend the update-gui callback
+    # TODO: maybe just define objects in main, config later in start-routine, can replace/extend the update-gui callback
     # TODO: bring logger to second tab, brings cleaner interface
     # TODO: add a notification, that info is about to be improved
     start_dearpygui(primary_window="main")

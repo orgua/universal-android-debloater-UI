@@ -1,6 +1,5 @@
-from framework_adb import *
-from framework_debloat import *
-from configuration import *
+import framework_adb as adb_fw
+import configuration as cfg
 
 # TODO: initial, unfinished (and now most likely incompatible) cmd line interface
 # TODO: try https://github.com/tiangolo/typer to put together a proper CLI
@@ -11,12 +10,8 @@ from configuration import *
 
 
 if __name__ == '__main__':
-    device = connect_device_usb(adb_key_file_path)
-    users = get_device_users(device)
-    if len(users) > 1:
-        print("NOTE: there are several users, will choose first one in list!")
-        print(users)
-    user = users["index"].iloc[0]
+    adb_fw.connect_device_usb()
+    adb_fw.update_device_properties()
 
     #pull_device_package_list_backup(device)
     #push_device_package_list_backup(device, "./requirements.txt")
@@ -38,4 +33,5 @@ if __name__ == '__main__':
         package_data.to_csv(local_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
     except PermissionError:
         print(f"ERROR: file {local_file_path} could not be saved, seems to be open in another program")
+    adb_fw.disconnect_device()
     device.close()  # TODO: transform into fn or class-method
