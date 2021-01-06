@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='Universal Android Debloater UI',
-    version='0.4',
+    version='0.5',
     packages=['UAD-UI'],
     install_requires=['adb-shell[async, usb]', 'pandas', 'dearpygui', 'gitpython', 'setuptools'],
     url='https://github.com/orgua/universal-android-debloater-UI',

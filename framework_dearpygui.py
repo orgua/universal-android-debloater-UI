@@ -1,13 +1,14 @@
 from typing import NoReturn
+import time
 
 from dearpygui.core import *
 from dearpygui.simple import *
 import pandas as pd
 
-from framework_adb import *
-from framework_debloat import *
-from framework_misc import save_to_log, git_update
-from configuration import *
+import framework_adb  as adb_fw
+import framework_debloat as uad_fw
+import framework_misc as misc
+import configuration as cfg
 
 # ###############################################################################
 #                                GUI Globals                                    #
@@ -44,8 +45,8 @@ def filter_dataframe(df: pd.DataFrame, column: str, filter_val: int) -> pd.DataF
 
 
 def update_table() -> NoReturn:
-    global package_data, table_dimension, package_columns, debloat_columns
-    type_data = filter_dataframe(package_data, "type", get_value("button_filter_type"))
+    global table_dimension
+    type_data = filter_dataframe(cfg.package_data, "type", get_value("button_filter_type"))
     type_data.loc[:, "active"] = type_data["enabled"] & type_data["installed"]
     active_data = filter_dataframe(type_data, "active", get_value("button_filter_active"))
     safe_data = filter_dataframe(active_data, "is_safe", get_value("button_filter_safe"))
@@ -56,7 +57,7 @@ def update_table() -> NoReturn:
         match_description = keyword_data["source_str"].str.contains(keyword)
         keyword_data = keyword_data[match_package | match_description]
     keyword_data.loc[:, "type"] = keyword_data["type"].apply(lambda x: "System" if x else "3rd Party")
-    data_print = keyword_data[package_columns + debloat_columns[1:-3]]
+    data_print = keyword_data[cfg.package_columns + cfg.debloat_columns[1:-3]]
     set_table_data("table_packages", data_print.values.tolist())
     set_headers("table_packages", data_print.columns.values.tolist())
     log_info(f"updated table, {len(data_print)} items", logger="debuglog")
@@ -66,26 +67,24 @@ def update_table() -> NoReturn:
 
 
 def update_data() -> NoReturn:
-    global device, package_data, debloat_data
-    package_data1 = package_data if (len(package_data) > 0) else restore_device_package_list(device)
+    package_data1 = cfg.package_data if (len(cfg.package_data) > 0) else adb_fw.restore_device_package_list(cfg.device)
     package_data1["via_adb"] = False
-    package_data2 = read_package_list(device)
+    package_data2 = adb_fw.read_package_list(cfg.device)
     package_data3 = pd.concat([package_data1, package_data2], ignore_index=True)
     package_data4 = package_data3.sort_values(by="via_adb", ascending=False).groupby("package").first().reset_index()
-    package_data = enrich_package_list(package_data4, debloat_data)
-    log_info(f"read {len(package_data)} packages, {len(package_data[package_data['via_adb'] == False])} only via backup (not adb)", logger="debuglog")
+    cfg.package_data = uad_fw.enrich_package_list(package_data4, cfg.debloat_data)
+    log_info(f"read {len(cfg.package_data)} packages, {len(cfg.package_data[cfg.package_data['via_adb'] == False])} only via backup (not adb)", logger="debuglog")
 
 
 def update_buttons() -> NoReturn:
-    global is_connected
-    configure_item("button_disconnect", label="Disconnect Device" if is_connected else "Connect Device")
-    configure_item("button_update_data", enabled=is_connected)
-    configure_item("button_save_data", enabled=is_connected)
-    configure_item("text_filter_keywords", enabled=is_connected)
-    configure_item("button_filter_type", enabled=is_connected)
-    configure_item("button_filter_active", enabled=is_connected)
-    configure_item("button_filter_safe", enabled=is_connected)
-    configure_item("button_filter_reset", enabled=is_connected)
+    configure_item("button_disconnect", label="Disconnect Device" if cfg.is_connected else "Connect Device")
+    configure_item("button_update_data", enabled=cfg.is_connected)
+    configure_item("button_save_data", enabled=cfg.is_connected)
+    configure_item("text_filter_keywords", enabled=cfg.is_connected)
+    configure_item("button_filter_type", enabled=cfg.is_connected)
+    configure_item("button_filter_active", enabled=cfg.is_connected)
+    configure_item("button_filter_safe", enabled=cfg.is_connected)
+    configure_item("button_filter_reset", enabled=cfg.is_connected)
 
 
 def filter_update_callback(sender, data) -> NoReturn:
@@ -98,33 +97,30 @@ def filter_reset_callback(sender, data) -> NoReturn:
 
 
 def connect_button_callback(sender, data) -> NoReturn:
-    global device, user, package_data, debloat_data, is_connected, adb_key_file_path
-    global package_columns, debloat_columns, device_android_sdk, device_android_version, device_name
-
-    if is_connected:
-        device.close()
-        device = None
-        package_data = pd.DataFrame(columns=package_columns + debloat_columns)
+    if cfg.is_connected:
+        cfg.device.close()
+        cfg.device = None
+        cfg.package_data = pd.DataFrame(columns=cfg.package_columns + cfg.debloat_columns)
         log_info(f"Disconnected from device", logger="debuglog")
     else:
-        device = connect_device_usb(adb_key_file_path)
-        if device is None:
+        cfg.device = adb_fw.connect_device_usb(cfg.adb_key_file_path)
+        if cfg.device is None:
             log_error(f"Not able to connect to any device", logger="debuglog")
             return
-        device_android_sdk = get_device_properties(device)
-        log_info(f"connected device='{device_name}', android {device_android_version}", logger="debuglog")
-        users = get_device_users(device)
+        adb_fw.get_device_properties(cfg.device)
+        log_info(f"connected device='{cfg.device_name}', android {cfg.device_android_version}", logger="debuglog")
+        users = adb_fw.get_device_users(cfg.device)
         if len(users) > 1:
             log_info("NOTE: there are several users, will choose first one in list!", logger="debuglog")
             log_info(str(users), logger="debuglog")
-        user = users["index"].iloc[0]
-        if device_android_sdk < 26:
+        cfg.user = users["index"].iloc[0]
+        if cfg.device_android_sdk < 26:
             log_error("WARNING: Your android version is old (< 8.0).", logger="debuglog")
             log_error("Uninstalled packages can't be restored.", logger="debuglog")
             log_error("The GUI won't stop you from doing so", logger="debuglog")
         update_data()
     update_table()
-    is_connected = check_device_availability(device)
+    cfg.is_connected = adb_fw.check_device_availability(cfg.device)
     update_buttons()
 
 
@@ -134,22 +130,14 @@ def update_button_callback(sender, data) -> NoReturn:
 
 
 def save_button_callback(sender, data) -> NoReturn:
-    global debloat_data, package_data, local_package_file_path, csv_delimiter, csv_encoding, csv_decimal
+    global csv_delimiter, csv_encoding, csv_decimal
     log_info("will save package-data as csv (local_file_path)", logger="debuglog")
-    try:
-        # TODO: only for debug for now
-        debloat_data.to_csv("./debloat_list.csv", sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
-    except PermissionError:
-        log_error(f"file with debloat_data could not be saved, seems to be open in another program", logger="debuglog")
-    try:
-        package_data.to_csv(local_package_file_path, sep=csv_delimiter, encoding=csv_encoding, decimal=csv_decimal)
-    except PermissionError:
-        log_error(f"file {local_package_file_path} could not be saved, seems to be open in another program", logger="debuglog")
+    misc.save_dataframe(cfg.debloat_data, "./debloat_list.csv") # TODO: only for debug for now
+    misc.save_dataframe(cfg.package_data, cfg.local_package_file_path)
 
 
 def show_package_info(package: str) -> NoReturn:
-    global package_data, debloat_columns
-    package_info1 = package_data.loc[package_data["package"] == package, debloat_columns[-1]].iloc[0]
+    package_info1 = cfg.package_data.loc[cfg.package_data["package"] == package, cfg.debloat_columns[-1]].iloc[0]
     package_info2 = list([])
     # easiest (most stupid) way to shorten strings, because text-field can't handle line breaks
     # TODO: this should be done earlier on retrieval, we also need a joined version for search (without '#')
@@ -163,14 +151,13 @@ def show_package_info(package: str) -> NoReturn:
             package_info2.append(info[0:60])
             package_info2.append(info[60:120])
             package_info2.append(info[120:])
-    package_file = package_data.loc[package_data["package"] == package, debloat_columns[-4]].iloc[0]  # TODO: optimize
-    package_loc = package_data.loc[package_data["package"] == package, debloat_columns[-3]].iloc[0]
+    package_file = cfg.package_data.loc[cfg.package_data["package"] == package, cfg.debloat_columns[-4]].iloc[0]  # TODO: optimize
+    package_loc = cfg.package_data.loc[cfg.package_data["package"] == package, cfg.debloat_columns[-3]].iloc[0]
     if len(package_file) > 0:
         package_source = [f"\nSource {package_file}, Line {package_loc}"]
     else:
         package_source = ["package currently not known to debloat-project"]
     package_meta = [package + "\n"] + package_info2 + package_source
-
     set_value("package_info", "\n".join(package_meta))
 
 
@@ -196,7 +183,7 @@ def update_selection_list() -> NoReturn:
             continue
         table_selection.append(get_table_item("table_packages", row_index, 0))
 
-    has_selection = is_connected and (len(table_selection) > 0)
+    has_selection = cfg.is_connected and (len(table_selection) > 0)
     configure_item("button_sel_clear", enabled=has_selection)
     configure_item("button_sel_enable", enabled=has_selection)
     configure_item("button_sel_disable", enabled=has_selection)
@@ -212,62 +199,61 @@ def table_callback(sender, data) -> NoReturn:
 
 
 def packages_enable_callback(sender, data) -> NoReturn:
-    global table_selection, device, user, package_data
     for package in table_selection:
         log_info(f"enabling '{package}'", logger="debuglog")
-        enable_package(device, package, user, with_install=False)
-        package_data.loc[package_data["package"] == package, "enabled"] = True
-    backup_device_package_list(device, package_data)
+        adb_fw.enable_package(cfg.device, package, cfg.user, with_install=False)
+        cfg.package_data.loc[cfg.package_data["package"] == package, "enabled"] = True
+    adb_fw.backup_device_package_list(cfg.device, cfg.package_data)
     update_data()
     update_table()
     # TODO: buttons can supply data - the 4 similar FNs can be ONE
 
 
 def packages_disable_callback(sender, data) -> NoReturn:
-    global table_selection, device, user, package_data
+    global table_selection
     for package in table_selection:
         log_info(f"disabling '{package}'", logger="debuglog")
-        disable_package(device, package, user, with_uninstall=False)
-        package_data.loc[package_data["package"] == package, "enabled"] = False
-    backup_device_package_list(device, package_data)
+        adb_fw.disable_package(cfg.device, package, cfg.user, with_uninstall=False)
+        cfg.package_data.loc[cfg.package_data["package"] == package, "enabled"] = False
+    adb_fw.backup_device_package_list(cfg.device, cfg.package_data)
     update_data()
     update_table()
 
 
 def packages_install_callback(sender, data) -> NoReturn:
-    global table_selection, device, user, package_data
+    global table_selection
     for package in table_selection:
         log_info(f"installing '{package}'", logger="debuglog")
-        enable_package(device, package, user, with_install=True)
-        package_data.loc[package_data["package"] == package, "installed"] = True
-    backup_device_package_list(device, package_data)
+        adb_fw.enable_package(cfg.device, package, cfg.user, with_install=True)
+        cfg.package_data.loc[cfg.package_data["package"] == package, "installed"] = True
+    adb_fw.backup_device_package_list(cfg.device, cfg.package_data)
     update_data()
     update_table()
 
 
 def packages_uninstall_callback(sender, data) -> NoReturn:
-    global table_selection, device, user, package_data
+    global table_selection
     for package in table_selection:
         log_info(f"uninstalling '{package}'", logger="debuglog")
-        disable_package(device, package, user, with_uninstall=True)
-        package_data.loc[package_data["package"] == package, "installed"] = False
-    backup_device_package_list(device, package_data)
+        adb_fw.disable_package(cfg.device, package, cfg.user, with_uninstall=True)
+        cfg.package_data.loc[cfg.package_data["package"] == package, "installed"] = False
+    adb_fw.backup_device_package_list(cfg.device, cfg.package_data)
     update_data()
     update_table()
 
 
 # TODO: just a test for now
 def packages_clear_userdata_callback(sender, data) -> NoReturn:
-    global table_selection, device, user, package_data
+    global table_selection
     for package in table_selection:
         log_info(f"clearing user-data for '{package}'", logger="debuglog")
-        cmd_option = f"--user {user}" if device_android_sdk > 21 else ""
+        cmd_option = f"--user {cfg.user}" if cfg.device_android_sdk > 21 else ""
         cmd4 = f"pm clear {cmd_option} {package}"
-        response4 = device.shell(cmd4)
+        response4 = cfg.device.shell(cmd4)
         print(f"-> clear userdata of package '{package}' with response '{response4}'")
-        save_to_log(device_name, package, cmd4, response4)
-        time.sleep(adb_sleep)
-    backup_device_package_list(device, package_data)
+        misc.save_to_log(cfg.device_name, package, cmd4, response4)
+        time.sleep(cfg.adb_sleep_time_s)
+    adb_fw.backup_device_package_list(cfg.device, cfg.package_data)
     update_data()
     update_table()
 
@@ -282,7 +268,6 @@ def window_resize_callback(sender, data) -> NoReturn:
 
 
 def program_start_callback(sender, data) -> NoReturn:
-    global debloat_data
-    log_info(f"updating local git-repo of debloat-scripts", logger="debuglog")
-    git_update()
-    debloat_data = parse_debloat_lists()
+    misc.git_update()
+    cfg.debloat_data = uad_fw.parse_debloat_lists()
+    log_info(f"parsed debloat lists, got {len(cfg.debloat_data)} entries", logger="debuglog")

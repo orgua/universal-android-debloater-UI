@@ -3,7 +3,9 @@ import os.path
 from typing import NoReturn
 from git.repo.base import Repo
 
-from configuration import debloater_list_path, adb_log_file_path
+import pandas as pd
+from dearpygui.core import log_error, log_info
+import configuration as cfg
 
 # ###############################################################################
 #                                Git                                            #
@@ -11,13 +13,12 @@ from configuration import debloater_list_path, adb_log_file_path
 
 
 def git_update() -> NoReturn:
-    global debloater_list_path
-    uad_path = "/".join(debloater_list_path.split("/")[0:-1])
+    uad_path = "/".join(cfg.debloater_list_path.split("/")[0:-1])
     if not os.path.exists(uad_path):
-        print(f"-> cloned the git-repo 'universal android debloater'")
+        log_info(f"-> cloned the git-repo 'universal android debloater'", logger="debuglog")
         Repo.clone_from("https://gitlab.com/W1nst0n/universal-android-debloater", uad_path)
     else:
-        print(f"-> updating uad-scripts")
+        log_info(f"updating local git-repo of debloat-scripts", logger="debuglog")
         repo = Repo(uad_path)
         repo.git.pull()
 
@@ -28,8 +29,31 @@ def git_update() -> NoReturn:
 
 
 def save_to_log(_device: str, package: str, action: str, response: str) -> NoReturn:
-    global adb_log_file_path
-    with open(adb_log_file_path, 'a') as file:
+    with open(cfg.adb_log_file_path, 'a') as file:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         file.write(f"{timestamp} - {_device} - {package} - '{action}': ")
         file.write(response.replace("\n", ";").replace("\r", ";").strip("\t") + "\n")
+
+# ###############################################################################
+#                                Pandas                                         #
+# ###############################################################################
+
+
+def save_dataframe(df: pd.DataFrame, path: str) -> bool:
+    # TODO: refactor to proper fn with try catch, used at least 3x
+    try:
+        df.to_csv(path,
+                  sep=cfg.csv_delimiter,
+                  encoding=cfg.csv_encoding,
+                  decimal=cfg.csv_decimal)
+    except PermissionError:
+        log_error(f"file {path} could not be saved -> open in another program?",
+                  logger="debuglog")
+    return True
+
+
+def load_dataframe(path: str) -> pd.DataFrame:
+    return pd.read_csv(path,
+                       sep=cfg.csv_delimiter,
+                       encoding=cfg.csv_encoding,
+                       decimal=cfg.csv_decimal)

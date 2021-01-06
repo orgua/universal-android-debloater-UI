@@ -15,7 +15,7 @@ adb_log_file_path = "./log_adb_operations.txt"
 
 
 # TODO: the logic fns in get_package_list() could be lambdas, defined here
-program_name = "Universal Android Debloater UI - v0.45 Alpha"
+program_name = "Universal Android Debloater UI - v0.5"
 
 # assemble config
 remote_package_file_path = remote_save_path + save_file_name + "." + save_file_extension
@@ -26,7 +26,7 @@ local_package_file_path = "./" + save_file_name + "." + save_file_extension
 #                                ADB Config                                     #
 # ###############################################################################
 
-adb_sleep = 0.5  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
+adb_sleep_time_s = 0.5  # s # TODO: test if that makes the experience smoother, sometimes the phone stops to answer
 
 package_list_query = "cmd package list packages "
 package_list_query_deprecated = "pm list packages "

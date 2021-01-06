@@ -2,8 +2,7 @@ import os.path
 
 import pandas as pd
 
-from framework_adb import debloat_columns, package_columns
-from configuration import debloater_list_path, debloater_list_extension
+import configuration as cfg
 
 # ###############################################################################
 #                               DEBLOAT SCRIPT                                  #
@@ -12,12 +11,11 @@ from configuration import debloater_list_path, debloater_list_extension
 
 # import universal android debloater
 def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
-    global debloater_list_path, debloater_list_extension, debloat_columns, package_columns
-    file_items = [x for x in os.scandir(debloater_list_path) if x.is_file()]  # is List[os.DirEntry]
+    file_items = [x for x in os.scandir(cfg.debloater_list_path) if x.is_file()]  # is List[os.DirEntry]
     package_list = list([])
     for file in file_items:
         item_ext = file.name.split(".")[-1]
-        if item_ext.find(debloater_list_extension) < 0:
+        if item_ext.find(cfg.debloater_list_extension) < 0:
             continue
         if debug:
             print(f"-> will parse '{file.name}'")
@@ -51,7 +49,7 @@ def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
                         line_max = max_index
                         break
                 data_row = [package_name, True, is_safe, file.name, data_index, range(line_min, line_max), data[line_min:line_max]]
-                package_list.append(pd.DataFrame([data_row], columns=[package_columns[0]] + debloat_columns))
+                package_list.append(pd.DataFrame([data_row], columns=[cfg.package_columns[0]] + cfg.debloat_columns))
     print(f"-> parsed debloat lists, got {len(package_list)} entries")
     packages = pd.concat(package_list, ignore_index=True).sort_values(by="package", ascending=True)
     packages.loc[:, "duplicate"] = packages.duplicated(subset=["package"], keep=False)
@@ -60,8 +58,7 @@ def parse_debloat_lists(debug: bool = False) -> pd.DataFrame:
 
 
 def enrich_package_list(packages: pd.DataFrame, debloats: pd.DataFrame) -> pd.DataFrame:
-    global debloat_columns
-    packages.loc[:, debloat_columns] = packages["package"].apply(lambda x: lambda_enrich_package(x, debloats))
+    packages.loc[:, cfg.debloat_columns] = packages["package"].apply(lambda x: lambda_enrich_package(x, debloats))
     return packages
 
 
@@ -70,10 +67,10 @@ def lambda_enrich_package(package: str, debloat_list: pd.DataFrame) -> pd.Series
     debloats = debloat_list[debloat_list["package"] == package]
     item = pd.Series(dtype=bool)
     if len(debloats) > 0:
-        for column in debloat_columns:
+        for column in cfg.debloat_columns:
             item[column] = debloats[column].iloc[0]
     else:
-        item[debloat_columns[0]] = False
-        for column in debloat_columns[1:]:
+        item[cfg.debloat_columns[0]] = False
+        for column in cfg.debloat_columns[1:]:
             item[column] = ""
     return item
