@@ -1,5 +1,4 @@
-from dearpygui.core import *
-from dearpygui.simple import *
+from dearpygui import core, simple
 
 import configuration as cfg
 from framework_dearpygui import *
