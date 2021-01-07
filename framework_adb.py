@@ -222,17 +222,17 @@ def disable_package(package: str, with_uninstall: bool = False) -> bool:
     print(f"-> stopped  package '{package}' with response '{response1}'")
     print(f"-> disabled package '{package}' with response '{response2}'")
     misc.save_to_log(device_name, package, cmd2, response2)
+    device_packages.loc[device_packages["package"] == package, "enabled"] = False
     time.sleep(cfg.adb_sleep_time_s)
     if with_uninstall:
         response3 = device.shell(cmd3)
-        print(f"-> uninstalled package '{package}' with response '{response3}'")
-        misc.save_to_log(device_name, package, cmd3, response3)
-        device_packages.loc[device_packages["package"] == package, "installed"] = False
         time.sleep(cfg.adb_sleep_time_s)
-    response4 = device.shell(cmd4)
-    print(f"-> cleared userdata of package '{package}' with response '{response4}'")
-    misc.save_to_log(device_name, package, cmd4, response4)
-    device_packages.loc[device_packages["package"] == package, "enabled"] = False
+        response4 = device.shell(cmd4)
+        print(f"-> uninstalled package '{package}' with response '{response3}'")
+        print(f"-> cleared userdata of package '{package}' with response '{response4}'")
+        misc.save_to_log(device_name, package, cmd3, response3)
+        misc.save_to_log(device_name, package, cmd4, response4)
+        device_packages.loc[device_packages["package"] == package, "installed"] = False
     return True
 
 
