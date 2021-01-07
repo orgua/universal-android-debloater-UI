@@ -16,6 +16,7 @@ This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1
 - filter for package-type, keywords, enable-status and remove-recommendation
 - packages can be enabled, disabled, installed and uninstalled
 - manually save current package data as csv locally
+  - makes it easy to contribute new packages to the debloat project
 - auto-save meta-data on device (info stays even if adb does not show it anymore)
 - resizing windows adapts the table
 - log of adb operations - timestamp, device, shell-operation and response
@@ -61,6 +62,8 @@ py main_gui.py
 
 **MacOS** (with python and git installed):
 
+**NOTE: there seems to be a problem with adb-shell[usb] (beta) - tool is probably not working currently**
+
 ```console
 sudo easy_install pip
 sudo pip install --upgrade pip
@@ -72,8 +75,6 @@ pip install -r requirements.txt
 
 py main_gui.py
  ```
-
-**NOTE: there seems to be a problem with adb-shell[usb] (beta) - tool is therefore not working**
 
 ### Usage
 
