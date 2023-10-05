@@ -1,8 +1,8 @@
-## Universal Android Debloater UI
+## ~~Universal Android Debloater UI~~
 
 This Repository offers a GUI for the awesome [UAD-Project](https://gitlab.com/W1nst0n/universal-android-debloater)
 
-**NOTE: this is a prototype for now**
+**NOTE: the main project was [restarted with their own GUI](https://github.com/0x192/universal-android-debloater) with hints to my layout / design**
 
 ### Features:
 
